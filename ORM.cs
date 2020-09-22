@@ -1,8 +1,12 @@
-﻿using System;
+﻿using ORM.Attribute;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Dynamic;
+using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace ORM
@@ -12,37 +16,66 @@ namespace ORM
         private static object GetClassProperty(IDataReader reader,Type type)
         {
             var instance = Activator.CreateInstance(type);
-            for (var i = 0; i < reader.FieldCount; i++)
+            var fieldDic = new Dictionary<string, string>();
+            for(var i = 0;i < reader.FieldCount; i++)
             {
                 var field = reader.GetName(i);
-                var prop = type.GetProperty(field);
-                if (prop.PropertyType.IsPrimitive)
+                fieldDic.Add(field, field);
+            }
+            
+            foreach(var prop in type.GetProperties())
+            {
+                var field = ORMAttributeHelper.GetPropField(prop); 
+                if (!fieldDic.ContainsKey(field)) continue;
+                if (prop.PropertyType.IsPrimitive || prop.PropertyType.Equals(typeof(string)))
                 {
-                    prop.SetValue(instance, reader[field]);
+                    prop.SetValue(instance, reader[fieldDic[field]]);
                 }
                 else
                 {
-                    prop.SetValue(instance, GetClassProperty(reader,prop.PropertyType));
+                    prop.SetValue(instance, GetClassProperty(reader, prop.PropertyType));
                 }
-
             }
             return instance;
+        }
+
+        private static dynamic GetDynamicProperty(IDataReader reader)
+        {
+            var instance = new ExpandoObject(); 
+            var dic = (IDictionary<string, object>)instance;
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                var field = reader.GetName(i);
+                dic[field] = reader[field];
+            }
+            return instance;
+        }
+
+        private static void AddParameter(IDbCommand cmd,object item)
+        {
+            var type = item.GetType();
+            foreach(var prop in type.GetProperties())
+            {
+                var param = new SqlParameter($"@{prop.Name}",prop.GetValue(item));
+                cmd.Parameters.Add(param);
+            }
         }
 
         private static IDbCommand CreateCommand(IDbConnection cnn, string sql,object param)
         {
             var cmd = cnn.CreateCommand();
             cmd.CommandText = sql;
+            
             if (param is IEnumerable o)
             {
                 foreach (var item in o)
                 {
-                    cmd.Parameters.Add(item);
+                    AddParameter(cmd,item);
                 }
             }
             else
             {
-                cmd.Parameters.Add(param);
+                AddParameter(cmd, param);
             }
             return cmd;
         }
@@ -61,7 +94,7 @@ namespace ORM
             return dataList;
         }
 
-        public static List<object> Query(this IDbConnection cnn, string sql, object param = null)
+        public static List<dynamic> Query(this IDbConnection cnn, string sql, object param = null)
         {
             var dataList = new List<dynamic>();
             var cmd = CreateCommand(cnn, sql, param);
@@ -69,7 +102,7 @@ namespace ORM
             var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                dataList.Add(GetClassProperty(reader, type));
+                dataList.Add(GetDynamicProperty(reader));
             }
             reader.Close();
             return dataList;

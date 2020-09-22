@@ -11,7 +11,9 @@ namespace ORM.Models
         [Column("ID")]
         public int TaskID { get; set; }
 
-        [Column("DisplayName")]
-        public string Name { get; set; }
+        [Column("Name")]
+        public string DisplayName { get; set; }
+
+        public string Content { get; set; }
     }
 }
