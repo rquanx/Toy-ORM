@@ -60,10 +60,6 @@ namespace ORM
         public List<T> QueryDefault<T>(params object[] param)
         {
             var type = typeof(T);
-            if (!type.IsDefined(typeof(TableAttribute), false))
-            {
-                throw new Exception("Lack TableAttribute");
-            }
             var tableName = ORMCacheHelper<T>.GetTable();
             var columns = ORMCacheHelper<T>.GetColumns();
             var sql = $@"select {(string.Join(",",columns))} from {tableName}";
