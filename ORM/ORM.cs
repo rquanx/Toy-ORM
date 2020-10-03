@@ -121,7 +121,6 @@ namespace ORM
         {
             var dataList = new List<dynamic>();
             var cmd = CreateCommand(cnn, sql, param);
-            var type = typeof(object);
             var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
